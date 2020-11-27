@@ -105,6 +105,64 @@ QueryWrapper<Users> queryWrapper = new QueryWrapper<>();
         //从查询的对象中取出相应的用户名和密码
         return new User(users.getUsername(),new BCryptPasswordEncoder().encode(users.getPassword()),auths);
 ```
-6.在启动类上添加注解("MapperScan")
+6.在启动类上添加注解("MapperScan")  
+
+##自定义登录页面,以及访问路径不需要认证也能访问
+1.配置类实现相关的配置
+```
+     protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin() //自定义登录页面
+                .loginPage("/login.html") //页面地址
+                .loginProcessingUrl("/user/login")  //表单提交的controller层路径
+                .defaultSuccessUrl("/test/index").permitAll()   //登录成功的跳转路径,要放行
+                //设置哪些路径不需要认证直接可以访问
+                .and().authorizeRequests().antMatchers("/","/test/get","/user/login").permitAll()
+                .anyRequest().authenticated() //除了上述請求都要经过认证
+                .and()
+                .csrf().disable();//关闭跨域
+    }
+```
+2.创建相关页面  
+  表单中的用户名和密码的name必须叫做username 和 password
+##基于角色或者权限的访问控制
+###hasAuthority():当前用户有指定权限则返回true,否则返回false
+1.配置类中设置访问这些地址需要哪些权限  
+`.antMatchers("/test/index").hasAnyAuthority("admin")`   
+2.在UserDetailService中把返回的User对象赋予权限   
+``List<GrantedAuthority> auths = AuthorityUtils.commaSeparatedStringToAuthorityList("role");``
+###hasAnyAuthority():控制具有多个权限的访问
+###hasRole():用户具有指定角色才能访问   
+``antMatchers("/test/index").hasRole("sale")//role: ROLE_sale
+    AuthorityUtils.commaSeparatedStringToAuthorityList("admin,ROLE_sale");``
+
+##自定义没问访问权限的跳转页面   
+`http.exceptionHandling().accessDeniedPage("/unauth.html");`
+##注解的开发   
+注解得开发主要使用在方法上,用于控制方法得不同方法的访问权限
+##用户注销   
+`//配置退出设置  
+   http.logout().logoutUrl("/logout").logoutSuccessUrl("/test/index");`   
+##自动登录实现
+###原理
+1.cookie实现(存储在浏览器中,但是涉密不安全)
+2.SpringSecurity实现(基于数据库记住我)
+原理:在用户登录成功(认证成功)后,会向浏览器发送一个cookie的加密字符串,同时也会向数据库保存该加密的字符串和相应的用户信息(用户名和密码)  
+再次访问的时候,会根据这个浏览器的cookie信息去数据库中进行匹配,如果匹配上,则可以自动登录.
+###具体步骤
+1.创建一个表,存放cookie令牌和相应用户信息   
+2.配置类,注入一个数据源,配置操作数据库的对象    
+`JdbcTokenRepositoryImpl jdbcTokenRepository = new JdbcTokenRepositoryImpl();
+         jdbcTokenRepository.setDataSource(dataSource);
+         return jdbcTokenRepository;`  
+3.配置类中配置自动登录      
+`  .rememberMe().tokenRepository(persistentTokenRepository())//配置操作数据库的对象
+                 .tokenValiditySeconds(60)//配置token的过期时间
+                 .userDetailsService(userDetailsService)`   
+4.设置登陆页面   
+`自动登录<input type="checkbox" name="remember-me"/>`  
+##CSRF(跨站请求伪造)理解
+
+
+
 
 
